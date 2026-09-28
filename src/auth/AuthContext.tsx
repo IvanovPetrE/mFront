@@ -85,9 +85,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const bootstrap = useCallback(async () => {
     const generation = ++bootGeneration.current;
     const isStale = () => generation !== bootGeneration.current;
-
-    setStatus("loading");
-    setError(null);
+    // Статус "loading" здесь не выставляем: при старте он уже такой, а для
+    // повторной попытки его ставит retry. Синхронный setState в эффекте
+    // (bootstrap зовётся из useEffect) — лишний рендер, и линтер хуков на это ругается.
     try {
       if (!configRef.current) {
         const config = await getAuthConfig();
@@ -141,6 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const retry = useCallback(() => {
+    setStatus("loading");
+    setError(null);
+    bootstrap();
+  }, [bootstrap]);
+
   const login = useCallback(() => {
     if (configRef.current) {
       // Абсолютный URL, а не просто pathname: OAuth-редирект — это полная
@@ -151,9 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       redirectToLogin(configRef.current, window.location.href);
     } else {
       // Конфиг так и не загрузился — сначала пробуем его получить.
-      bootstrap();
+      retry();
     }
-  }, [bootstrap]);
+  }, [retry]);
 
   const logout = useCallback(() => {
     clearTimeout(refreshTimer.current);
@@ -177,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ status, user, error, login, logout, retry: bootstrap, reportAccountDisabled }}>
+    <AuthContext.Provider value={{ status, user, error, login, logout, retry, reportAccountDisabled }}>
       {children}
     </AuthContext.Provider>
   );

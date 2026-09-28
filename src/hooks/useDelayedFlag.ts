@@ -7,14 +7,17 @@ import { useEffect, useState } from "react";
  * но должна появиться, если связь пропала надолго.
  */
 export function useDelayedFlag(flag: boolean, delayMs: number): boolean {
-  const [delayed, setDelayed] = useState(false);
+  const [elapsed, setElapsed] = useState(false);
+
+  // Сброс — во время рендера, а не в эффекте: так React не рисует лишний
+  // кадр со старым значением (паттерн «подстройка состояния при смене пропса»).
+  if (!flag && elapsed) setElapsed(false);
+
   useEffect(() => {
-    if (!flag) {
-      setDelayed(false);
-      return;
-    }
-    const t = setTimeout(() => setDelayed(true), delayMs);
+    if (!flag) return;
+    const t = setTimeout(() => setElapsed(true), delayMs);
     return () => clearTimeout(t);
   }, [flag, delayMs]);
-  return delayed;
+
+  return flag && elapsed;
 }

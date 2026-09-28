@@ -112,7 +112,6 @@ export function ChatWindow({
   // сообщения были известны ДО его отправки (см. mergeLatestPage).
   const messagesRef = useRef(messages);
   const stickToBottomRef = useRef(true);
-  const prevLastIdRef = useRef<string | null>(null);
   // Номер последнего запроса страницы: ответ от более раннего (например,
   // первичная загрузка, обогнанная загрузкой после реконнекта) игнорируем.
   const loadGenerationRef = useRef(0);
@@ -133,15 +132,24 @@ export function ChatWindow({
   // время рендера — это нарушает правила React (рендер должен быть чистым).
   const reportUnknownUsers = useEffectEvent((ids: string[]) => onUnknownUsers(ids));
 
+  // Новое сообщение внизу, а человек читает историю выше — не дёргаем ленту,
+  // а показываем кнопку «Новые сообщения». Зовётся из обработчиков событий
+  // (WS, ресинк), а не из эффекта: синхронный setState в эффекте — лишний рендер.
+  const noteNewBelow = useCallback(() => {
+    if (!stickToBottomRef.current) setHasUnseenBelow(true);
+  }, []);
+
   const loadLatest = useCallback(
     async (mode: "initial" | "resync") => {
       const generation = ++loadGenerationRef.current;
       const knownSeq = lastSeq(messagesRef.current);
-      if (mode === "initial") setLoad({ kind: "loading" });
       try {
         const page = await messagesApi.list(chat.id, { limit: PAGE_SIZE });
         if (generation !== loadGenerationRef.current) return;
         setMessages((prev) => mergeLatestPage(prev, page.items, knownSeq));
+        // Ресинк после разрыва принёс сообщения новее известных, а человек
+        // читает историю выше — показываем кнопку «Новые сообщения».
+        if (lastSeq(page.items) > knownSeq && knownSeq > 0) noteNewBelow();
         setLoad({ kind: "ready" });
       } catch (e) {
         if (generation !== loadGenerationRef.current) return;
@@ -155,7 +163,7 @@ export function ChatWindow({
         else console.warn("[chat] не удалось синхронизировать сообщения после реконнекта", e);
       }
     },
-    [chat.id, loseAccess],
+    [chat.id, loseAccess, noteNewBelow],
   );
 
   // Первичная загрузка — один раз на окно: при смене чата родитель
@@ -196,14 +204,9 @@ export function ChatWindow({
 
   useLayoutEffect(() => {
     messagesRef.current = messages;
-    const lastId = messages.at(-1)?.id ?? null;
-    const newAtBottom = lastId !== null && lastId !== prevLastIdRef.current;
-    prevLastIdRef.current = lastId;
     if (stickToBottomRef.current) {
       const el = listRef.current;
       if (el) el.scrollTop = el.scrollHeight;
-    } else if (newAtBottom) {
-      setHasUnseenBelow(true);
     }
   }, [messages]);
 
@@ -269,7 +272,10 @@ export function ChatWindow({
 
   // --- Realtime -------------------------------------------------------------
   const { connected, sendTyping } = useChatSocket(chat.id, {
-    onMessageCreated: (m) => setMessages((prev) => upsertMessage(prev, m)),
+    onMessageCreated: (m) => {
+      setMessages((prev) => upsertMessage(prev, m));
+      noteNewBelow();
+    },
     onMessageUpdated: (m) => setMessages((prev) => upsertMessage(prev, m)),
     onMessageDeleted: (id) => setMessages((prev) => removeMessage(prev, id)),
     onMessageStatus: (messageId, status) => setMessages((prev) => applyStatus(prev, messageId, status)),
@@ -457,7 +463,13 @@ export function ChatWindow({
             {load.kind === "error" && (
               <div className="list-placeholder" role="alert">
                 <p>{load.message}</p>
-                <button className="btn btn-primary" onClick={() => loadLatest("initial")}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setLoad({ kind: "loading" });
+                    loadLatest("initial");
+                  }}
+                >
                   Повторить
                 </button>
               </div>
