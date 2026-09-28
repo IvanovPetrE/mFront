@@ -1,12 +1,22 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { messagesApi } from "../api/messages";
 import { chatsApi } from "../api/chats";
 import { ApiError, errorMessage } from "../api/http";
 import { useChatSocket } from "../ws/useChatSocket";
 import type { ChatListItem, MessageOut } from "../api/types";
-import { useDocumentVisible } from "../hooks/useDocumentVisible";
+import { usePageAttention } from "../hooks/usePageAttention";
 import { useDelayedFlag } from "../hooks/useDelayedFlag";
-import { applyStatus, mergeLatestPage, removeMessage, upsertMessage } from "../utils/messages";
+import { useSeenSeq } from "../hooks/useSeenSeq";
+import { useToday } from "../hooks/useToday";
+import {
+  applyStatus,
+  displayStatuses,
+  lastSeq,
+  mergeLatestPage,
+  messagesToMarkRead,
+  removeMessage,
+  upsertMessage,
+} from "../utils/messages";
 import { formatDayLabel, isSameDay, withinMinutes } from "../utils/dates";
 import { plural } from "../utils/plural";
 import { MessageBubble } from "./MessageBubble";
@@ -85,9 +95,13 @@ export function ChatWindow({
   const [accessLost, setAccessLost] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [hasUnseenBelow, setHasUnseenBelow] = useState(false);
-  const visible = useDocumentVisible();
+  const attentive = usePageAttention();
+  const today = useToday();
 
   const listRef = useRef<HTMLDivElement>(null);
+  // Последний отрисованный список — чтобы запрос страницы знал, какие
+  // сообщения были известны ДО его отправки (см. mergeLatestPage).
+  const messagesRef = useRef(messages);
   const stickToBottomRef = useRef(true);
   const prevLastIdRef = useRef<string | null>(null);
   // Номер последнего запроса страницы: ответ от более раннего (например,
@@ -115,11 +129,12 @@ export function ChatWindow({
   const loadLatest = useCallback(
     async (mode: "initial" | "resync") => {
       const generation = ++loadGenerationRef.current;
+      const knownSeq = lastSeq(messagesRef.current);
       if (mode === "initial") setLoad({ kind: "loading" });
       try {
         const page = await messagesApi.list(chat.id, { limit: PAGE_SIZE });
         if (generation !== loadGenerationRef.current) return;
-        setMessages((prev) => mergeLatestPage(prev, page.items));
+        setMessages((prev) => mergeLatestPage(prev, page.items, knownSeq));
         setLoad({ kind: "ready" });
       } catch (e) {
         if (generation !== loadGenerationRef.current) return;
@@ -169,7 +184,8 @@ export function ChatWindow({
   }
 
   useLayoutEffect(() => {
-    const lastId = messages.length ? messages[messages.length - 1].id : null;
+    messagesRef.current = messages;
+    const lastId = messages.at(-1)?.id ?? null;
     const newAtBottom = lastId !== null && lastId !== prevLastIdRef.current;
     prevLastIdRef.current = lastId;
     if (stickToBottomRef.current) {
@@ -180,43 +196,56 @@ export function ChatWindow({
     }
   }, [messages]);
 
+  // Лента меняет высоту без новых сообщений: растёт поле ввода (до 6 строк),
+  // выезжает клавиатура на телефоне, появляется баннер. scrollTop при этом не
+  // меняется, и последние сообщения уезжали под поле. Если человек был внизу —
+  // остаёмся внизу.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let lastHeight = el.clientHeight;
+    const observer = new ResizeObserver(() => {
+      if (el.clientHeight === lastHeight) return;
+      lastHeight = el.clientHeight;
+      if (stickToBottomRef.current) el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // --- Прочтение ------------------------------------------------------------
-  // Раньше при каждом открытии чата POST /status уходил на КАЖДОЕ чужое
-  // сообщение в ленте, включая давно прочитанные: открыл чат с 50
-  // входящими — 50 запросов, и каждый (в патче /ws/me) рассылал
-  // chat.updated всем участникам, заставляя их перезапрашивать список чатов.
-  // Теперь: только непрочитанные, только когда вкладка на экране.
+  // Отмечаем только то, что человек действительно видел: сообщение побывало
+  // на экране, пока вкладка была видима и окно в фокусе (useSeenSeq). Раньше
+  // «прочитано» уходило на всё загруженное — в том числе на сообщение,
+  // пришедшее, пока человек читал историю выше.
+  //
+  // И не по запросу на сообщение: POST /status уходит одному, самому новому
+  // увиденному сообщению каждого автора (messagesToMarkRead), а отправитель
+  // сам распространяет «прочитано» на более ранние (displayStatuses).
+  // Раньше открытие чата с 20 непрочитанными давало 20 параллельных POST.
+  const seenSeq = useSeenSeq(listRef, attentive, messages);
 
   useEffect(() => {
-    if (!visible || load.kind !== "ready" || accessLost || messages.length === 0) return;
+    if (load.kind !== "ready" || accessLost || seenSeq === 0) return;
 
-    const lastSeq = messages[messages.length - 1].seq;
-    if (lastSeq > lastMarkedSeqRef.current) {
+    if (seenSeq > lastMarkedSeqRef.current) {
       const previous = lastMarkedSeqRef.current;
-      lastMarkedSeqRef.current = lastSeq;
-      chatsApi.markRead(chat.id, lastSeq).catch(() => {
+      lastMarkedSeqRef.current = seenSeq;
+      chatsApi.markRead(chat.id, seenSeq).catch(() => {
         lastMarkedSeqRef.current = previous;
       });
     }
 
-    // delivery_status — поле самого сообщения (см. models.py), не журнал
-    // прочтений по каждому участнику. /status может звать только не-автор
-    // (иначе 403 "Cannot update status of your own message" — см.
-    // messages.py), поэтому свои и системные сообщения пропускаем.
-    for (const m of messages) {
-      if (
-        m.user_id !== null &&
-        m.user_id !== currentUserId &&
-        m.delivery_status !== "read" &&
-        !markedReadRef.current.has(m.id)
-      ) {
-        markedReadRef.current.add(m.id);
-        messagesApi.setStatus(m.id, "read").catch(() => {
-          markedReadRef.current.delete(m.id);
-        });
-      }
+    // /status может звать только не-автор (иначе 403) — messagesToMarkRead
+    // свои и системные сообщения уже отсекает.
+    for (const m of messagesToMarkRead(messages, seenSeq, currentUserId)) {
+      if (markedReadRef.current.has(m.id)) continue;
+      markedReadRef.current.add(m.id);
+      messagesApi.setStatus(m.id, "read").catch(() => {
+        markedReadRef.current.delete(m.id);
+      });
     }
-  }, [visible, load.kind, accessLost, messages, chat.id, currentUserId]);
+  }, [seenSeq, load.kind, accessLost, messages, chat.id, currentUserId]);
 
   // --- Неизвестные авторы ---------------------------------------------------
   useEffect(() => {
@@ -282,16 +311,21 @@ export function ChatWindow({
     setMessages((prev) => upsertMessage(prev, msg));
   }
 
-  function renderMessages() {
+  // Раскладка ленты зависит только от сообщений и справочников. Без useMemo
+  // она пересобиралась на каждое «печатает…», chat.updated из любого чата и
+  // символ в поиске (замер в ревью: все 60 пузырей на каждое событие).
+  const renderedDays = useMemo(() => {
     const isGroup = chat.type === "group";
+    const now = new Date(today);
+    const statuses = displayStatuses(messages, currentUserId);
     // Сообщения раскладываются по дням: у каждого дня своя обёртка с
     // «липкой» плашкой даты. Плашка липнет только в пределах своего дня и
     // выталкивается следующим — иначе все даты, прокрученные вверх,
     // складывались бы стопкой друг на друга.
     const days: Array<{ key: string; label: string; items: ReactNode[] }> = [];
     messages.forEach((m, i) => {
-      const prev = i > 0 ? messages[i - 1] : null;
-      const next = i < messages.length - 1 ? messages[i + 1] : null;
+      const prev = messages[i - 1] ?? null;
+      const next = messages[i + 1] ?? null;
       const newDay = !prev || !isSameDay(prev.created_at, m.created_at);
       const own = m.user_id === currentUserId;
       const groupedPrev = !newDay && sameSeries(prev, m);
@@ -299,25 +333,29 @@ export function ChatWindow({
       // В группе у чужих сообщений: имя — над первым в серии, аватар — у
       // последнего (как в привычных мессенджерах). В личном чате и так
       // понятно, кто пишет, — там ни имени, ни аватара.
-      const others = isGroup && !own && m.user_id !== null;
-      const authorName = others ? (peopleById.get(m.user_id!) ?? "Участник") : undefined;
+      const authorId = isGroup && !own ? m.user_id : null;
+      const others = authorId !== null;
+      const authorName = authorId !== null ? (peopleById.get(authorId) ?? "Участник") : undefined;
 
-      if (newDay) {
+      let day = days.at(-1);
+      if (newDay || !day) {
         const d = new Date(m.created_at);
-        days.push({
+        day = {
           key: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
-          label: formatDayLabel(m.created_at),
+          label: formatDayLabel(m.created_at, now),
           items: [],
-        });
+        };
+        days.push(day);
       }
-      days[days.length - 1].items.push(
+      day.items.push(
         <MessageBubble
           key={m.id}
           message={m}
+          status={statuses.get(m.id) ?? m.delivery_status}
           own={own}
           authorName={authorName}
           showAuthorName={others && !groupedPrev}
-          authorAvatarUrl={others ? avatarById.get(m.user_id!) : undefined}
+          authorAvatarUrl={authorId !== null ? avatarById.get(authorId) : undefined}
           avatarSlot={others}
           showAvatar={others && !groupedNext}
           groupedPrev={groupedPrev}
@@ -334,7 +372,7 @@ export function ChatWindow({
         {day.items}
       </div>
     ));
-  }
+  }, [messages, chat.type, currentUserId, peopleById, avatarById, today]);
 
   const typingNames = Array.from(typingUsers.values());
   const typingText =
@@ -343,7 +381,7 @@ export function ChatWindow({
       : chat.type === "direct"
         ? "печатает"
         : typingNames.length === 1
-          ? `${typingNames[0].split(" ")[0]} печатает`
+          ? `${typingNames[0]?.split(" ")[0] ?? "Кто-то"} печатает`
           : `${typingNames.length} ${plural(typingNames.length, "участник", "участника", "участников")} печатают`;
 
   let subtitle: ReactNode;
@@ -419,7 +457,7 @@ export function ChatWindow({
                 Сообщений пока нет — напишите первым.
               </div>
             )}
-            {renderMessages()}
+            {renderedDays}
           </div>
         </div>
         {hasUnseenBelow && (

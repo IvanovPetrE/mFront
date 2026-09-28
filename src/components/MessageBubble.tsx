@@ -1,23 +1,30 @@
-import type { ReactNode } from "react";
-import type { MessageOut } from "../api/types";
-import { formatTime } from "../utils/dates";
+import { memo, type ReactNode } from "react";
+import type { DeliveryStatus, MessageOut } from "../api/types";
+import { formatFullDate, formatTime } from "../utils/dates";
 import { Avatar, nameColor } from "./Avatar";
 import { IconCheck, IconChecks } from "./icons";
 
-const statusLabel: Record<string, string> = {
+const statusLabel: Record<DeliveryStatus, string> = {
   sent: "отправлено",
   delivered: "доставлено",
   read: "прочитано",
 };
 
-function StatusIcon({ status }: { status: string }) {
+function StatusIcon({ status }: { status: DeliveryStatus }) {
   if (status === "read") return <IconChecks size={16} className="status-icon read" />;
   if (status === "delivered") return <IconChecks size={16} className="status-icon" />;
   return <IconCheck size={16} className="status-icon" />;
 }
 
-export function MessageBubble({
+/**
+ * `memo`: лента перерисовывается на каждое «печатает…», `chat.updated` из
+ * любого чата и символ в поиске, а у пузыря при этом не меняется ничего.
+ * Все пропсы — примитивы или объект сообщения, который меняется только при
+ * правке, поэтому поверхностного сравнения достаточно.
+ */
+export const MessageBubble = memo(function MessageBubble({
   message,
+  status,
   own,
   authorName,
   showAuthorName = false,
@@ -28,6 +35,12 @@ export function MessageBubble({
   groupedNext = false,
 }: {
   message: MessageOut;
+  /**
+   * Статус для галочек своего сообщения. Может быть выше, чем
+   * `message.delivery_status`: если прочитано следующее своё сообщение,
+   * прочитано и это (см. `displayStatuses`).
+   */
+  status: DeliveryStatus;
   own: boolean;
   /** Имя отправителя (чужие сообщения в группе) — для подписи и инициалов на аватаре. */
   authorName?: string;
@@ -44,18 +57,24 @@ export function MessageBubble({
 }) {
   // Системные сообщения ("Иван добавил Петра") создаёт только сервер —
   // у них нет автора и им не место в "пузыре" собеседника.
+  // data-seq — для IntersectionObserver в ChatWindow: по нему понятно, какие
+  // сообщения человек действительно видел на экране.
   if (message.kind === "system") {
-    return <div className="message-system">{message.content}</div>;
+    return (
+      <div className="message-system" data-seq={message.seq}>
+        {message.content}
+      </div>
+    );
   }
 
-  const fullDate = new Date(message.created_at).toLocaleString("ru-RU");
+  const fullDate = formatFullDate(message.created_at);
   const meta: ReactNode = (
     <>
       {message.edited_at && <span title="изменено">изм.</span>}
       <time dateTime={message.created_at} title={fullDate}>
         {formatTime(message.created_at)}
       </time>
-      {own && <StatusIcon status={message.delivery_status} />}
+      {own && <StatusIcon status={status} />}
     </>
   );
 
@@ -69,7 +88,7 @@ export function MessageBubble({
     .join(" ");
 
   return (
-    <div className={rowClass}>
+    <div className={rowClass} data-seq={message.seq}>
       {avatarSlot && (
         <div className="msg-avatar-slot">
           {showAvatar && message.user_id && (
@@ -93,9 +112,9 @@ export function MessageBubble({
         </div>
         <span className="bubble-meta">
           {meta}
-          {own && <span className="sr-only">, {statusLabel[message.delivery_status] ?? message.delivery_status}</span>}
+          {own && <span className="sr-only">, {statusLabel[status]}</span>}
         </span>
       </div>
     </div>
   );
-}
+});
