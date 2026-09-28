@@ -42,6 +42,16 @@ export function useChatSocket(chatId: string | null, handlers: Handlers) {
       if (isReconnect) handlersRef.current.onReconnected?.();
     },
     onFatalClose: (code) => handlersRef.current.onAccessLost?.(code),
+    // Уходим из чата посреди набора: гасим индикатор у собеседников сразу,
+    // а не через их таймаут. Раньше это пытался сделать MessageInput из своего
+    // cleanup, но к тому моменту сокет уже был закрыт (cleanup родителя
+    // выполняется раньше), и событие молча терялось.
+    beforeClose: (send) => {
+      if (lastTypingSentAt.current > 0) {
+        send({ event: "typing", is_typing: false } satisfies WsClientEvent);
+        lastTypingSentAt.current = 0;
+      }
+    },
     onEvent: (raw) => {
       const msg = raw as WsServerEvent;
       const h = handlersRef.current;

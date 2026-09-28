@@ -39,16 +39,11 @@ export function MessageInput({
   // тем же client_id, и бэкенд вернёт уже созданное сообщение, а не дубль.
   const draftClientId = useRef<string | null>(null);
 
-  // При уходе из чата: снять таймер и сказать собеседникам, что мы больше
-  // не печатаем, — иначе у них индикатор провисит до своего таймаута.
-  useEffect(() => {
-    return () => {
-      clearTimeout(typingTimeout.current);
-      if (isTypingRef.current) onTyping(false);
-    };
-    // onTyping намеренно не в зависимостях: нужен только момент размонтирования.
-    // Замыкание с первого рендера безопасно — sendTyping читает сокет через ref.
-  }, []);
+  // При уходе из чата снимаем таймер. «Перестал печатать» отсюда не шлём:
+  // cleanup родителя (ChatWindow) выполняется раньше нашего, сокет к этому
+  // моменту уже закрыт. Это делает сам сокет-хук перед закрытием
+  // (`beforeClose` в useChatSocket).
+  useEffect(() => () => clearTimeout(typingTimeout.current), []);
 
   // Автоподъём: сбрасываем высоту и берём реальную высоту содержимого.
   useLayoutEffect(() => {

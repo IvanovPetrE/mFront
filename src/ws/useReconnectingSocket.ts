@@ -35,6 +35,14 @@ export interface SocketOptions {
    * остальные коды долбили сервер раз в 15 секунд бесконечно.
    */
   onFatalClose?: (code: number) => void;
+  /**
+   * Вызывается при уходе (размонтирование, смена `path`) ПЕРЕД закрытием
+   * сокета, пока через него ещё можно что-то отправить. Нужен для «прощальных»
+   * событий вроде `typing: false`: из cleanup дочернего компонента их уже не
+   * отправить — React выполняет cleanup родителя раньше, чем детей, и к
+   * этому моменту сокет закрыт.
+   */
+  beforeClose?: (send: (event: object) => boolean) => void;
 }
 
 /**
@@ -164,7 +172,14 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
       window.removeEventListener("online", handleOnline);
       clearTimeout(retryTimer);
       clearInterval(pingTimer);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        optionsRef.current.beforeClose?.((event) => {
+          ws.send(JSON.stringify(event));
+          return true;
+        });
+      }
+      ws?.close();
       wsRef.current = null;
       setConnected(false);
     };
