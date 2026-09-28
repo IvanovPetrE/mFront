@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { chatsApi } from "../api/chats";
 import { ApiError, errorMessage } from "../api/http";
 import type { ChatOut, UserPublic } from "../api/types";
@@ -27,33 +27,38 @@ export function NewChatDialog({
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  // onClose — через ref. Родитель передаёт новую функцию на каждом своём
-  // рендере (а он перерисовывается на каждое chat.updated), и эффект ниже с
-  // [onClose] в зависимостях перезапускался бы каждый раз — снова переводя
-  // фокус на окно и выдёргивая его из поля, где человек печатает.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
+  // Нативный <dialog> + showModal() даёт из коробки то, что раньше
+  // приходилось писать руками и что работало не полностью: фокус не уходит
+  // из окна по Tab, страница под окном недоступна (inert), Escape вызывает
+  // событие cancel, а само окно рисуется в top layer — поверх всего без
+  // всяких z-index (раньше из-за них модалка на телефоне оказывалась под
+  // сайдбаром).
   useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onCloseRef.current();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    // Фокус внутрь окна при открытии и обратно на кнопку «Новый чат» при закрытии.
-    dialogRef.current?.focus();
-    // Страница под модалкой не должна прокручиваться (особенно на телефоне).
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    dialog.showModal();
+    // Фокус на само окно, а не на первое поле: на телефоне фокус в поле
+    // сразу открыл бы клавиатуру поверх шторки.
+    dialog.focus();
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = prevOverflow;
+      if (dialog.open) dialog.close();
       previouslyFocused?.focus?.();
     };
   }, []);
+
+  // Закрытие кликом по подложке: и нажатие, и отпускание должны прийтись
+  // на подложку. Иначе окно закрывалось, если нажать мышь внутри (например,
+  // выделяя текст в поле) и отпустить снаружи — click приходит на общего предка.
+  const pressedOnBackdrop = useRef(false);
+  function onBackdrop(e: MouseEvent<HTMLDialogElement> | PointerEvent<HTMLDialogElement>): boolean {
+    if (e.target !== e.currentTarget) return false;
+    const r = e.currentTarget.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  }
 
   const others = (people ?? []).filter((u) => u.id !== currentUserId);
   const q = search.trim().toLowerCase();
@@ -96,104 +101,115 @@ export function NewChatDialog({
   if (isGroup) hint = `Группа: вы и ещё ${selected.size} ${plural(selected.size, "участник", "участника", "участников")}`;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        ref={dialogRef}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-header">
-          <h2 id={titleId}>Новый чат</h2>
-          <button className="icon-btn" aria-label="Закрыть" onClick={onClose}>
-            <IconClose />
-          </button>
-        </div>
+    <dialog
+      className="modal"
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      onCancel={(e) => {
+        // Escape: закрываем через родителя, чтобы состояние React и окно
+        // не разошлись. Родитель размонтирует нас, cleanup вызовет close().
+        e.preventDefault();
+        onClose();
+      }}
+      // Страховка: если браузер закрыл окно сам (например, повторный Escape
+      // Chrome не даёт отменить), сообщаем родителю.
+      onClose={onClose}
+      onPointerDown={(e) => {
+        pressedOnBackdrop.current = onBackdrop(e);
+      }}
+      onClick={(e) => {
+        if (pressedOnBackdrop.current && onBackdrop(e)) onClose();
+        pressedOnBackdrop.current = false;
+      }}
+    >
+      <div className="modal-header">
+        <h2 id={titleId}>Новый чат</h2>
+        <button className="icon-btn" aria-label="Закрыть" onClick={onClose}>
+          <IconClose />
+        </button>
+      </div>
 
-        <div className="modal-body">
-          {others.length > 5 && (
-            <label className="search-field modal-search">
-              <IconSearch size={18} />
+      <div className="modal-body">
+        {others.length > 5 && (
+          <label className="search-field modal-search">
+            <IconSearch size={18} />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Найти человека"
+              aria-label="Найти человека"
+            />
+          </label>
+        )}
+
+        <p className="modal-hint" aria-live="polite">
+          {hint}
+        </p>
+
+        {isGroup && (
+          <input
+            className="field"
+            placeholder="Название группы (необязательно)"
+            value={groupName}
+            maxLength={100}
+            onChange={(e) => setGroupName(e.target.value)}
+            aria-label="Название группы"
+          />
+        )}
+
+        {people === null && !peopleError && (
+          <div className="list-placeholder">
+            <span className="spinner" aria-hidden="true" />
+            Загрузка людей…
+          </div>
+        )}
+        {peopleError && (
+          <div className="banner banner-danger">
+            <span>{peopleError}</span>
+            <button className="btn-text" onClick={onRetryPeople}>
+              Повторить
+            </button>
+          </div>
+        )}
+        {people !== null && others.length === 0 && !peopleError && (
+          <div className="list-placeholder">Больше пока никого нет.</div>
+        )}
+        {others.length > 0 && visible.length === 0 && (
+          <div className="list-placeholder">Никого не нашлось</div>
+        )}
+
+        <div className="people-list">
+          {visible.map((u) => (
+            <label key={u.id} className={`person-row${selected.has(u.id) ? " selected" : ""}`}>
+              <Avatar name={u.display_name} seed={u.id} url={u.avatar_url} size={40} />
+              <span className="person-name">{u.display_name}</span>
               <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Найти человека"
-                aria-label="Найти человека"
+                type="checkbox"
+                className="check"
+                checked={selected.has(u.id)}
+                onChange={() => toggle(u.id)}
               />
             </label>
-          )}
+          ))}
+        </div>
 
-          <p className="modal-hint" aria-live="polite">
-            {hint}
-          </p>
-
-          {isGroup && (
-            <input
-              className="field"
-              placeholder="Название группы (необязательно)"
-              value={groupName}
-              maxLength={100}
-              onChange={(e) => setGroupName(e.target.value)}
-              aria-label="Название группы"
-            />
-          )}
-
-          {people === null && !peopleError && (
-            <div className="list-placeholder">
-              <span className="spinner" aria-hidden="true" />
-              Загрузка людей…
-            </div>
-          )}
-          {peopleError && (
-            <div className="banner banner-danger">
-              <span>{peopleError}</span>
-              <button className="btn-text" onClick={onRetryPeople}>
-                Повторить
-              </button>
-            </div>
-          )}
-          {people !== null && others.length === 0 && !peopleError && (
-            <div className="list-placeholder">Больше пока никого нет.</div>
-          )}
-          {others.length > 0 && visible.length === 0 && (
-            <div className="list-placeholder">Никого не нашлось</div>
-          )}
-
-          <div className="people-list">
-            {visible.map((u) => (
-              <label key={u.id} className={`person-row${selected.has(u.id) ? " selected" : ""}`}>
-                <Avatar name={u.display_name} seed={u.id} url={u.avatar_url} size={40} />
-                <span className="person-name">{u.display_name}</span>
-                <input
-                  type="checkbox"
-                  className="check"
-                  checked={selected.has(u.id)}
-                  onChange={() => toggle(u.id)}
-                />
-              </label>
-            ))}
+        {error && (
+          <div className="banner banner-danger" role="alert">
+            {error}
           </div>
-
-          {error && (
-            <div className="banner banner-danger" role="alert">
-              {error}
-            </div>
-          )}
-        </div>
-
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
-            Отмена
-          </button>
-          <button className="btn btn-primary" disabled={busy || selected.size === 0} onClick={create}>
-            {busy ? "Создаём…" : isGroup ? "Создать группу" : "Начать чат"}
-          </button>
-        </div>
+        )}
       </div>
-    </div>
+
+      <div className="modal-footer">
+        <button className="btn btn-secondary" onClick={onClose}>
+          Отмена
+        </button>
+        <button className="btn btn-primary" disabled={busy || selected.size === 0} onClick={create}>
+          {busy ? "Создаём…" : isGroup ? "Создать группу" : "Начать чат"}
+        </button>
+      </div>
+    </dialog>
   );
 }
