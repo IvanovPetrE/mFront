@@ -60,9 +60,7 @@ export function ChatList({
   const q = query.trim().toLowerCase();
   const visible = q
     ? chats.filter(
-        (c) =>
-          titleOf(c).toLowerCase().includes(q) ||
-          (c.last_message?.content.toLowerCase().includes(q) ?? false),
+        (c) => titleOf(c).toLowerCase().includes(q) || (c.last_message?.content.toLowerCase().includes(q) ?? false),
       )
     : chats;
 

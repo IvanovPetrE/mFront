@@ -28,16 +28,14 @@ export const messagesApi = {
       body: JSON.stringify({ content }),
     }),
 
-  remove: (messageId: string) =>
-    apiFetch<void>(`/messages/${messageId}`, { method: "DELETE" }),
+  remove: (messageId: string) => apiFetch<void>(`/messages/${messageId}`, { method: "DELETE" }),
 
   // Живой обработчик в messages.py принимает `status: DeliveryStatus` без
   // Pydantic-обёртки — FastAPI трактует такой параметр как query, не body.
   // Только получатель может звать этот метод (не автор сообщения) — иначе
   // бэкенд ответит 403 "Cannot update status of your own message".
   setStatus: (messageId: string, status: DeliveryStatus) =>
-    apiFetch<{ message_id: string; status: DeliveryStatus }>(
-      `/messages/${messageId}/status?status=${status}`,
-      { method: "POST" },
-    ),
+    apiFetch<{ message_id: string; status: DeliveryStatus }>(`/messages/${messageId}/status?status=${status}`, {
+      method: "POST",
+    }),
 };

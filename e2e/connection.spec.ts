@@ -16,7 +16,9 @@ test("мёртвое соединение обнаруживается при в
   const path = "/ws/chat/c-direct";
   // Плановый ping через 25 с: сервер отвечает, значит, ping он поддерживает.
   await page.clock.fastForward(26_000);
-  await expect.poll(() => backend.wsLog.filter((l) => l.startsWith(`C→S ${path}`) && l.includes("ping")).length).toBe(1);
+  await expect
+    .poll(() => backend.wsLog.filter((l) => l.startsWith(`C→S ${path}`) && l.includes("ping")).length)
+    .toBe(1);
 
   // В dev StrictMode открывает лишний сокет и дважды грузит ленту — считаем от текущих значений.
   const loads = () => count(backend.requests, (r) => r.startsWith("GET /messages/c-direct"));

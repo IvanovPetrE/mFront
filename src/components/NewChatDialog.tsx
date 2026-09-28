@@ -98,7 +98,8 @@ export function NewChatDialog({
 
   let hint = "Выберите одного человека для личного чата или нескольких — для группы.";
   if (selected.size === 1) hint = `Личный чат: ${selectedPeople[0]?.display_name ?? ""}`;
-  if (isGroup) hint = `Группа: вы и ещё ${selected.size} ${plural(selected.size, "участник", "участника", "участников")}`;
+  if (isGroup)
+    hint = `Группа: вы и ещё ${selected.size} ${plural(selected.size, "участник", "участника", "участников")}`;
 
   return (
     <dialog
@@ -181,21 +182,14 @@ export function NewChatDialog({
         {people !== null && others.length === 0 && !peopleError && (
           <div className="list-placeholder">Больше пока никого нет.</div>
         )}
-        {others.length > 0 && visible.length === 0 && (
-          <div className="list-placeholder">Никого не нашлось</div>
-        )}
+        {others.length > 0 && visible.length === 0 && <div className="list-placeholder">Никого не нашлось</div>}
 
         <div className="people-list">
           {visible.map((u) => (
             <label key={u.id} className={`person-row${selected.has(u.id) ? " selected" : ""}`}>
               <Avatar name={u.display_name} seed={u.id} url={u.avatar_url} size={40} />
               <span className="person-name">{u.display_name}</span>
-              <input
-                type="checkbox"
-                className="check"
-                checked={selected.has(u.id)}
-                onChange={() => toggle(u.id)}
-              />
+              <input type="checkbox" className="check" checked={selected.has(u.id)} onChange={() => toggle(u.id)} />
             </label>
           ))}
         </div>

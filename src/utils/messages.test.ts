@@ -14,7 +14,12 @@ const ME = "me";
 const ANNA = "anna";
 const BORIS = "boris";
 
-function msg(seq: number, user: string | null = ANNA, status: DeliveryStatus = "sent", extra: Partial<MessageOut> = {}): MessageOut {
+function msg(
+  seq: number,
+  user: string | null = ANNA,
+  status: DeliveryStatus = "sent",
+  extra: Partial<MessageOut> = {},
+): MessageOut {
   return {
     id: `m${seq}`,
     chat_id: "c",

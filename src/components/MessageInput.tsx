@@ -14,8 +14,7 @@ const MAX_FIELD_HEIGHT_PX = 160;
 // На сенсорных экранах Enter — это перенос строки (как в нативных
 // мессенджерах), а отправка — кнопкой. На ПК Enter отправляет, Shift+Enter
 // переносит строку.
-const isTouchDevice = () =>
-  typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
+const isTouchDevice = () => typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
 
 export function MessageInput({
   onSend,

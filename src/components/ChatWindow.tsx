@@ -464,7 +464,9 @@ export function ChatWindow({
             )}
             {load.kind === "ready" && messages.length === 0 && (
               <div className="list-placeholder">
-                <span className="placeholder-emoji" aria-hidden="true">👋</span>
+                <span className="placeholder-emoji" aria-hidden="true">
+                  👋
+                </span>
                 Сообщений пока нет — напишите первым.
               </div>
             )}

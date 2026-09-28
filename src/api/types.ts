@@ -80,14 +80,10 @@ export type WsServerEvent =
   | { event: "typing"; data: { user_id: string; username: string; is_typing: boolean } }
   | { event: "pong" };
 
-export type WsClientEvent =
-  | { event: "typing"; is_typing: boolean }
-  | { event: "ping" };
+export type WsClientEvent = { event: "typing"; is_typing: boolean } | { event: "ping" };
 
 // Личный канал /ws/me (см. app/routers/ws.py, app/services.py:
 // notify_chat_updated) — события из ВСЕХ чатов пользователя разом,
 // без текста сообщений. Нужен, чтобы список чатов обновлялся, даже когда
 // открыт другой чат или вообще ни один.
-export type WsPersonalEvent =
-  | { event: "chat.updated"; data: { chat_id: string } }
-  | { event: "pong" };
+export type WsPersonalEvent = { event: "chat.updated"; data: { chat_id: string } } | { event: "pong" };

@@ -2,16 +2,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "ES2023",
-    "lib": [
-      "ES2023",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "skipLibCheck": true,
     "isolatedModules": true,
     "noEmit": true,
@@ -21,9 +15,5 @@
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": [
-    "vite.config.ts",
-    "playwright.config.ts",
-    "e2e"
-  ]
+  "include": ["vite.config.ts", "playwright.config.ts", "e2e"]
 }

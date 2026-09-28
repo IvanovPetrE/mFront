@@ -78,12 +78,7 @@ export const MessageBubble = memo(function MessageBubble({
     </>
   );
 
-  const rowClass = [
-    "msg-row",
-    own ? "own" : "",
-    groupedPrev ? "grouped-prev" : "",
-    groupedNext ? "grouped-next" : "",
-  ]
+  const rowClass = ["msg-row", own ? "own" : "", groupedPrev ? "grouped-prev" : "", groupedNext ? "grouped-next" : ""]
     .filter(Boolean)
     .join(" ");
 

@@ -177,9 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{ status, user, error, login, logout, retry: bootstrap, reportAccountDisabled }}
-    >
+    <AuthContext.Provider value={{ status, user, error, login, logout, retry: bootstrap, reportAccountDisabled }}>
       {children}
     </AuthContext.Provider>
   );

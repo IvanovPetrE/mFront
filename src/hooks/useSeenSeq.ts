@@ -26,11 +26,7 @@ function isSeen(entry: IntersectionObserverEntry): boolean {
  * `itemsKey` — что угодно, что меняется при появлении новых строк (обычно
  * сам массив сообщений): по нему новые строки ставятся под наблюдение.
  */
-export function useSeenSeq(
-  listRef: RefObject<HTMLElement | null>,
-  attentive: boolean,
-  itemsKey: unknown,
-): number {
+export function useSeenSeq(listRef: RefObject<HTMLElement | null>, attentive: boolean, itemsKey: unknown): number {
   const [seenSeq, setSeenSeq] = useState(0);
   const onScreen = useRef(new Set<number>());
   const attentiveRef = useRef(attentive);

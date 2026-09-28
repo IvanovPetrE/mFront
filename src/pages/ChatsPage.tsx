@@ -32,14 +32,8 @@ export function ChatsPage() {
 
   const [people, setPeople] = useState<UserPublic[] | null>(null);
   const [peopleError, setPeopleError] = useState<string | null>(null);
-  const peopleById = useMemo(
-    () => new Map((people ?? []).map((u) => [u.id, u.display_name])),
-    [people],
-  );
-  const avatarById = useMemo(
-    () => new Map((people ?? []).map((u) => [u.id, u.avatar_url])),
-    [people],
-  );
+  const peopleById = useMemo(() => new Map((people ?? []).map((u) => [u.id, u.display_name])), [people]);
+  const avatarById = useMemo(() => new Map((people ?? []).map((u) => [u.id, u.avatar_url])), [people]);
 
   /** chat_id личного чата -> user_id собеседника. */
   const [peerByChat, setPeerByChat] = useState<Map<string, string>>(new Map());
@@ -119,9 +113,7 @@ export function ChatsPage() {
   // запрашиваем один раз на чат.
   useEffect(() => {
     if (!currentUserId) return;
-    const toFetch = chats.filter(
-      (c) => c.type === "direct" && !peerRequestedRef.current.has(c.id),
-    );
+    const toFetch = chats.filter((c) => c.type === "direct" && !peerRequestedRef.current.has(c.id));
     for (const chat of toFetch) {
       peerRequestedRef.current.add(chat.id);
       chatsApi
@@ -225,12 +217,7 @@ export function ChatsPage() {
             <span className="sidebar-name">{user.display_name}</span>
           </div>
           <div className="sidebar-actions">
-            <button
-              className="icon-btn"
-              title="Новый чат"
-              aria-label="Новый чат"
-              onClick={() => setDialogOpen(true)}
-            >
+            <button className="icon-btn" title="Новый чат" aria-label="Новый чат" onClick={() => setDialogOpen(true)}>
               <IconCompose />
             </button>
             <button className="icon-btn" title="Выйти" aria-label="Выйти" onClick={logout}>

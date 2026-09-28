@@ -65,9 +65,7 @@ export function redirectToLogin(config: AuthConfig, next: string) {
  * нет (пользователь не залогинен / SSO-сессия истекла) — это штатный
  * случай при первой загрузке страницы, не ошибка.
  */
-export async function refreshAccessToken(
-  config: AuthConfig,
-): Promise<AccessTokenResponse | null> {
+export async function refreshAccessToken(config: AuthConfig): Promise<AccessTokenResponse | null> {
   const csrf = getCookie(config.csrf_cookie);
   const headers: HeadersInit = {};
   if (csrf) headers[config.csrf_header] = csrf;

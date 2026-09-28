@@ -15,8 +15,7 @@ export const chatsApi = {
       body: JSON.stringify({ user_id: userId, role }),
     }),
 
-  leave: (chatId: string) =>
-    apiFetch<ChatMemberOut>(`/chats/${chatId}/members/me`, { method: "DELETE" }),
+  leave: (chatId: string) => apiFetch<ChatMemberOut>(`/chats/${chatId}/members/me`, { method: "DELETE" }),
 
   markRead: (chatId: string, seq?: number) =>
     apiFetch<ChatMemberOut>(`/chats/${chatId}/read`, {

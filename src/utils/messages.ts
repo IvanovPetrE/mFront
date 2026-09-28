@@ -79,11 +79,7 @@ export function lastSeq(list: MessageOut[]): number {
  * пришедшие по WS за время запроса. Раньше здесь возвращался `[]`, и такое
  * сообщение пропадало.
  */
-export function mergeLatestPage(
-  list: MessageOut[],
-  page: MessageOut[],
-  knownSeqAtRequest: number,
-): MessageOut[] {
+export function mergeLatestPage(list: MessageOut[], page: MessageOut[], knownSeqAtRequest: number): MessageOut[] {
   const arrivedDuringRequest = (m: MessageOut) => m.seq > knownSeqAtRequest;
   if (page.length === 0) return list.filter(arrivedDuringRequest);
   const known = new Map(list.map((m) => [m.id, m]));
@@ -117,11 +113,7 @@ export function mergeLatestPage(
  * распространяет статус назад (`displayStatuses`). Раньше открытие чата с N
  * непрочитанными давало N параллельных POST /status.
  */
-export function messagesToMarkRead(
-  list: MessageOut[],
-  seenSeq: number,
-  currentUserId: string,
-): MessageOut[] {
+export function messagesToMarkRead(list: MessageOut[], seenSeq: number, currentUserId: string): MessageOut[] {
   const latestByAuthor = new Map<string, MessageOut>();
   for (const m of list) {
     if (m.seq > seenSeq) break; // список упорядочен по seq
@@ -137,10 +129,7 @@ export function messagesToMarkRead(
  * сервер хранит у них «доставлено» (получатель отмечает только самое новое,
  * см. `messagesToMarkRead`). Чужие сообщения в результат не попадают.
  */
-export function displayStatuses(
-  list: MessageOut[],
-  currentUserId: string,
-): Map<string, DeliveryStatus> {
+export function displayStatuses(list: MessageOut[], currentUserId: string): Map<string, DeliveryStatus> {
   const result = new Map<string, DeliveryStatus>();
   let best: DeliveryStatus = "sent";
   for (let i = list.length - 1; i >= 0; i--) {

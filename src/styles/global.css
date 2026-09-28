@@ -20,8 +20,9 @@
 :root {
   color-scheme: light;
 
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans",
-    "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
 
   /* Фирменный цвет — глубокий зелёный из прежней палитры, чуть темнее,
      чтобы белый текст на кнопках проходил контраст 4.5:1. */
@@ -222,7 +223,10 @@ p {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
 }
 .btn:active:not(:disabled) {
   transform: scale(0.98);
@@ -290,7 +294,9 @@ p {
   background: transparent;
   color: var(--text-2);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 .icon-btn:hover {
   background: var(--surface-2);
@@ -304,7 +310,10 @@ p {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2);
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .field::placeholder {
   color: var(--text-3);
@@ -334,7 +343,10 @@ p {
   border-radius: var(--radius);
   background: var(--surface-2);
   color: var(--text);
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .search-field input::placeholder {
   color: var(--text-3);
@@ -404,8 +416,7 @@ p {
   padding: calc(24px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
   background:
     radial-gradient(900px 500px at 10% -10%, var(--accent-soft), transparent 60%),
-    radial-gradient(700px 500px at 110% 110%, var(--accent-soft), transparent 55%),
-    var(--bg);
+    radial-gradient(700px 500px at 110% 110%, var(--accent-soft), transparent 55%), var(--bg);
 }
 .screen-plain {
   background: var(--bg);
@@ -1006,7 +1017,10 @@ p {
   border: 1px solid transparent;
   border-radius: 22px;
   background: var(--surface-2);
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .composer-field:focus-within {
   background: var(--surface);
@@ -1048,7 +1062,10 @@ p {
   background: var(--accent);
   color: var(--accent-contrast);
   cursor: pointer;
-  transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease,
+    opacity 0.15s ease;
 }
 .send-btn svg {
   margin-left: -2px;
@@ -1250,7 +1267,9 @@ body:has(dialog[open]) {
   border-radius: 50%;
   background: transparent;
   cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
 }
 .check:checked {
   border-color: var(--accent);
@@ -1308,14 +1327,18 @@ body:has(dialog[open]) {
     z-index: 1;
     border-right: 0;
     padding-left: 0;
-    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s;
+    transition:
+      transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s;
   }
   /* Список уезжает чуть влево под открытый чат и прячется от Tab/скринридера
      после окончания анимации (visibility с задержкой). */
   .app-shell.has-active .sidebar {
     transform: translateX(-28%);
     visibility: hidden;
-    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s 0.28s;
+    transition:
+      transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s 0.28s;
   }
 
   .chat-window {
