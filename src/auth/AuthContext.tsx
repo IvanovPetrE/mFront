@@ -140,7 +140,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(() => {
     if (configRef.current) {
-      redirectToLogin(configRef.current, window.location.pathname);
+      // Абсолютный URL, а не просто pathname: OAuth-редирект — это полная
+      // навигация браузера, а не fetch через прокси. Бэкенд вернёт нас на
+      // PUBLIC_BASE_URL (порт 8000), и там относительный "/chat" превратится
+      // в http://localhost:8000/chat. Абсолютный next такого не допустит —
+      // см. комментарий у redirectToLogin в api/auth.ts.
+      redirectToLogin(configRef.current, window.location.href);
     } else {
       // Конфиг так и не загрузился — сначала пробуем его получить.
       bootstrap();

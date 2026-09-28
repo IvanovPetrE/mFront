@@ -34,7 +34,27 @@ export async function getAuthConfig(): Promise<AuthConfig> {
   return res.json();
 }
 
-/** Полный редирект браузера — это серверный OIDC-флоу, не fetch. */
+/**
+ * Полный редирект браузера — это серверный OIDC-флоу, не fetch, и Vite-прокси
+ * тут не участвует: после Keycloak браузер попадает не на /auth/login (тот
+ * ушёл через прокси один раз, в самом начале), а на redirect_uri, который
+ * реально зарегистрирован в realm — т.е. на PUBLIC_BASE_URL бэкенда
+ * (сейчас http://localhost:8000, см. backend-review). Дальше бэкенд сам
+ * решает, куда отправить браузер по `next`.
+ *
+ * `next` поэтому обязан быть АБСОЛЮТНЫМ URL (window.location.href), а не
+ * pathname: если передать относительный путь, финальный редирект от
+ * бэкенда разрешится относительно ЕГО собственного origin (порт 8000) —
+ * это и есть причина «редиректит на localhost:8000/chat», а не баг
+ * прокси в vite.config.ts.
+ *
+ * ВАЖНО (бэкенд): чтобы это заработало, /auth/callback должен принимать
+ * абсолютный `next` и явно проверять его origin по allowlist (например,
+ * по тем же CORS_ORIGINS), а не просто отдавать RedirectResponse(next)
+ * как есть — иначе это open redirect. Если бэкенд сейчас не валидирует
+ * `next` вовсе, этот фронтенд-фикс уже решит проблему, но дыру всё равно
+ * стоит закрыть на бэкенде.
+ */
 export function redirectToLogin(config: AuthConfig, next: string) {
   const url = `${API_BASE}${config.login_url}?next=${encodeURIComponent(next)}`;
   window.location.href = url;
