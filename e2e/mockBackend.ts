@@ -183,7 +183,7 @@ export async function mockBackend(page: Page, data: MockData = defaultData()): P
     ws.onClose(() => wsLog.push(`CLOSE ${path}`));
   });
 
-  return {
+  const backend: MockBackend = {
     requests,
     wsLog,
     sent,
@@ -193,18 +193,19 @@ export async function mockBackend(page: Page, data: MockData = defaultData()): P
       return ws;
     },
     push(path, event) {
-      this.socket(path).send(JSON.stringify(event));
+      backend.socket(path).send(JSON.stringify(event));
     },
     failNextSend(kind) {
       failNext = kind;
     },
     mute(path) {
-      muted.add(this.socket(path));
+      muted.add(backend.socket(path));
     },
     opens(path) {
       return wsLog.filter((l) => l === `OPEN ${path}`).length;
     },
   };
+  return backend;
 }
 
 /** Сколько запросов с таким префиксом, например "POST /chats/". */

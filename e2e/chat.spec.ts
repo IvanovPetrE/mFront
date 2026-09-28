@@ -83,7 +83,8 @@ test("уход из чата посреди набора отправляет ty
   const log = backend.wsLog.filter((l) => l.includes("/ws/chat/c-direct"));
   const stop = log.findIndex((l) => l.includes('"is_typing":false'));
   expect(stop).toBeGreaterThan(-1);
-  expect(stop).toBeLessThan(log.indexOf("CLOSE /ws/chat/c-direct"));
+  // lastIndexOf: в dev StrictMode открывает и сразу закрывает лишний сокет.
+  expect(stop).toBeLessThan(log.lastIndexOf("CLOSE /ws/chat/c-direct"));
 });
 
 test("неудачная отправка оставляет текст, повтор идёт с тем же client_id", async ({ page }) => {
