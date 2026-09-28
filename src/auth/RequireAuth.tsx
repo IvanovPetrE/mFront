@@ -6,11 +6,11 @@ import { IconAlert, IconLock } from "../components/icons";
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { status, error, retry, logout } = useAuth();
 
-  if (status === "loading") {
+  if (status === "loading" || status === "signing-out") {
     return (
       <main className="screen screen-plain" role="status">
         <span className="spinner spinner-lg" aria-hidden="true" />
-        <span className="sr-only">Загрузка…</span>
+        <span className="sr-only">{status === "loading" ? "Загрузка…" : "Выход…"}</span>
       </main>
     );
   }

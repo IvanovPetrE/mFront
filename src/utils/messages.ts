@@ -21,8 +21,8 @@ export const STATUS_RANK: Record<DeliveryStatus, number> = { sent: 0, delivered:
  */
 export function upsertMessage(list: MessageOut[], msg: MessageOut): MessageOut[] {
   const idx = list.findIndex((m) => m.id === msg.id);
-  if (idx !== -1) {
-    const existing = list[idx];
+  const existing = list[idx];
+  if (existing) {
     // Статус не откатываем: копия из ответа POST ("sent") могла прийти уже
     // после WS-события "read" про то же сообщение.
     const merged =
@@ -36,7 +36,7 @@ export function upsertMessage(list: MessageOut[], msg: MessageOut): MessageOut[]
   // Обычно новое сообщение — самое свежее, но не всегда: два сообщения,
   // отправленные почти одновременно, могут прийти по WS в обратном порядке.
   let insertAt = list.length;
-  while (insertAt > 0 && list[insertAt - 1].seq > msg.seq) insertAt--;
+  while (insertAt > 0 && list[insertAt - 1]!.seq > msg.seq) insertAt--;
   return [...list.slice(0, insertAt), msg, ...list.slice(insertAt)];
 }
 

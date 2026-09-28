@@ -3,8 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover: на iPhone с «чёлкой» контент доходит до краёв,
-         а отступы под вырез и домашнюю полоску добавляет CSS через env(safe-area-inset-*). -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+         а отступы под вырез и домашнюю полоску добавляет CSS через env(safe-area-inset-*).
+         interactive-widget=resizes-content: на Android экранная клавиатура уменьшает
+         сам макет (и 100dvh), а не только видимую область, — поле ввода остаётся над
+         клавиатурой, как в нативных мессенджерах. iOS эту настройку игнорирует. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <!-- Цвет адресной строки / системной панели на мобильных — под светлую и тёмную тему. -->
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121a17" media="(prefers-color-scheme: dark)" />

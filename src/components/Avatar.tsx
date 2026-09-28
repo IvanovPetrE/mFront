@@ -14,11 +14,12 @@ const PALETTE: Array<[string, string]> = [
   ["#c79bf2", "#9a63e6"],
 ];
 
-/** Стабильный индекс цвета по id: один и тот же человек всегда одного цвета. */
-function colorIndex(seed: string): number {
+/** Стабильная пара цветов по id: один и тот же человек всегда одного цвета. */
+function colorsFor(seed: string): [string, string] {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return Math.abs(h) % PALETTE.length;
+  // `!`: индекс по модулю длины всегда в границах массива.
+  return PALETTE[Math.abs(h) % PALETTE.length]!;
 }
 
 /**
@@ -26,7 +27,7 @@ function colorIndex(seed: string): number {
  * чтобы в длинной переписке глаз связывал имя и кружок.
  */
 export function nameColor(seed: string): string {
-  return PALETTE[colorIndex(seed)][1];
+  return colorsFor(seed)[1];
 }
 
 export function initials(name: string): string {
@@ -68,7 +69,7 @@ export function Avatar({
 }) {
   const [failed, setFailed] = useState(false);
   const src = failed ? null : safeImageUrl(url);
-  const [from, to] = PALETTE[colorIndex(seed)];
+  const [from, to] = colorsFor(seed);
 
   return (
     // Аватар декоративный: имя всегда написано рядом текстом.

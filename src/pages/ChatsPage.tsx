@@ -10,6 +10,7 @@ import { ChatWindow } from "../components/ChatWindow";
 import { NewChatDialog } from "../components/NewChatDialog";
 import { IconChat, IconCompose, IconLogout, IconSearch } from "../components/icons";
 import { useMyEventsSocket } from "../ws/useMyEventsSocket";
+import { useToday } from "../hooks/useToday";
 
 const APP_TITLE = "Мессенджер";
 
@@ -23,6 +24,8 @@ export function ChatsPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // «18:22» / «вчера» / «пн» в списке чатов пересчитываются в полночь.
+  const today = useToday();
 
   const [people, setPeople] = useState<UserPublic[] | null>(null);
   const [peopleError, setPeopleError] = useState<string | null>(null);
@@ -259,6 +262,7 @@ export function ChatsPage() {
           currentUserId={user.id}
           peopleById={peopleById}
           query={query}
+          today={today}
           titleOf={titleOf}
           avatarOf={renderChatAvatar}
           onSelect={setActiveId}

@@ -6,6 +6,9 @@ import type { User } from "../api/types";
 import { tokenStore } from "./tokenStore";
 
 /**
+ * - `signing-out` — нажали «Выйти», ждём ответа сервера и редиректа. Без
+ *                отдельного статуса обнуление токена переводило в `anonymous`,
+ *                и перед уходом на Keycloak на миг мелькал экран входа.
  * - `error`    — не смогли даже выяснить, залогинен ли пользователь (бэкенд
  *                недоступен, 5xx). Раньше в этом случае исключение улетало
  *                из async-IIFE в никуда, и экран навсегда оставался на
@@ -15,7 +18,7 @@ import { tokenStore } from "./tokenStore";
  *                /ws/me). Показывать «Войти» здесь бессмысленно — вход
  *                пройдёт и снова упрётся в 403, получится петля.
  */
-type Status = "loading" | "authenticated" | "anonymous" | "error" | "disabled";
+type Status = "loading" | "authenticated" | "anonymous" | "error" | "disabled" | "signing-out";
 
 interface AuthContextValue {
   status: Status;
@@ -154,6 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearTimeout(refreshTimer.current);
+    // Сначала статус: подписчик на tokenStore меняет только
+    // "authenticated" → "anonymous", "signing-out" он не тронет.
+    setStatus("signing-out");
     if (configRef.current) {
       apiLogout(configRef.current);
     } else {

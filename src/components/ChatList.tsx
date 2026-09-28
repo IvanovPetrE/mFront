@@ -10,6 +10,7 @@ export function ChatList({
   currentUserId,
   peopleById,
   query = "",
+  today,
   titleOf,
   avatarOf,
   onSelect,
@@ -24,6 +25,8 @@ export function ChatList({
   peopleById: Map<string, string>;
   /** Строка поиска из сайдбара: фильтр по названию и последнему сообщению. */
   query?: string;
+  /** Начало сегодняшнего дня (useToday) — относительно него пишется «вчера», «пн». */
+  today: number;
   titleOf: (chat: ChatListItem) => string;
   avatarOf: (chat: ChatListItem, size: number) => ReactNode;
   onSelect: (id: string) => void;
@@ -53,6 +56,7 @@ export function ChatList({
     );
   }
 
+  const now = new Date(today);
   const q = query.trim().toLowerCase();
   const visible = q
     ? chats.filter(
@@ -77,7 +81,7 @@ export function ChatList({
         let author = "";
         if (last && last.kind !== "system" && last.user_id) {
           if (last.user_id === currentUserId) author = "Вы";
-          else if (chat.type === "group") author = (peopleById.get(last.user_id) ?? "").split(" ")[0];
+          else if (chat.type === "group") author = (peopleById.get(last.user_id) ?? "").split(" ")[0] ?? "";
         }
 
         return (
@@ -91,7 +95,7 @@ export function ChatList({
             <span className="chat-row-body">
               <span className="chat-row-top">
                 <span className="chat-row-name">{titleOf(chat)}</span>
-                {time && <span className="chat-row-time">{formatChatTime(time)}</span>}
+                {time && <span className="chat-row-time">{formatChatTime(time, now)}</span>}
               </span>
               <span className="chat-row-bottom">
                 <span className={`chat-row-preview${last?.kind === "system" ? " system" : ""}`}>
