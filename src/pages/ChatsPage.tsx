@@ -11,6 +11,7 @@ import { NewChatDialog } from "../components/NewChatDialog";
 import { IconChat, IconCompose, IconLogout, IconSearch } from "../components/icons";
 import { useMyEventsSocket } from "../ws/useMyEventsSocket";
 import { useToday } from "../hooks/useToday";
+import { useChatRoute } from "../hooks/useChatRoute";
 
 const APP_TITLE = "Мессенджер";
 
@@ -21,7 +22,9 @@ export function ChatsPage() {
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [chatsError, setChatsError] = useState<string | null>(null);
   const [chatsLoaded, setChatsLoaded] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  // Открытый чат живёт в адресе (/c/<id>): работает системная «Назад»,
+  // перезагрузка не сбрасывает выбор, ссылкой можно поделиться.
+  const [activeId, openChat] = useChatRoute();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [query, setQuery] = useState("");
   // «18:22» / «вчера» / «пн» в списке чатов пересчитываются в полночь.
@@ -186,10 +189,15 @@ export function ChatsPage() {
   // Если доступ к открытому чату пропал (вышли/исключили), после
   // перезагрузки списка его там уже не будет. Держим последний известный
   // объект, чтобы окно успело показать «нет доступа», а не исчезло молча.
-  const lastActiveRef = useRef<ChatListItem | null>(null);
+  //
+  // Раньше объект хранился в ref, записанном прямо во время рендера, — это
+  // нарушает правила React (рендер должен быть чистым), и React Compiler
+  // такие компоненты пропускает. Здесь — документированный паттерн
+  // «информация из прошлых рендеров»: setState во время рендера с условием.
   const found = chats.find((c) => c.id === activeId) ?? null;
-  if (found) lastActiveRef.current = found;
-  const active = found ?? (lastActiveRef.current?.id === activeId ? lastActiveRef.current : null);
+  const [lastActive, setLastActive] = useState<ChatListItem | null>(null);
+  if (found && found !== lastActive) setLastActive(found);
+  const active = found ?? (lastActive?.id === activeId ? lastActive : null);
 
   // Счётчик непрочитанного во вкладке браузера — видно, даже когда
   // мессенджер открыт в фоне. У открытого чата непрочитанного нет по смыслу.
@@ -265,7 +273,7 @@ export function ChatsPage() {
           today={today}
           titleOf={titleOf}
           avatarOf={renderChatAvatar}
-          onSelect={setActiveId}
+          onSelect={openChat}
           onNewChat={() => setDialogOpen(true)}
         />
       </aside>
@@ -279,7 +287,7 @@ export function ChatsPage() {
           currentUserId={user.id}
           peopleById={peopleById}
           avatarById={avatarById}
-          onBack={() => setActiveId(null)}
+          onBack={() => openChat(null)}
           onAccessLost={handleAccessLost}
           onUnknownUsers={requestUsers}
         />
@@ -307,7 +315,7 @@ export function ChatsPage() {
           onCreated={async (chat) => {
             setDialogOpen(false);
             await reloadChats();
-            setActiveId(chat.id);
+            openChat(chat.id);
           }}
         />
       )}

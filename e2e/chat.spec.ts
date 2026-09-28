@@ -149,3 +149,14 @@ test.describe("окно «Новый чат»", () => {
     await expect(opener).toBeFocused();
   });
 });
+
+test("переключение с чата на чат не копит историю: «Назад» ведёт к списку", async ({ page }) => {
+  await openApp(page);
+  await openChat(page, /Анна Смирнова/);
+  await page.getByRole("button", { name: /Команда/ }).click();
+  await expect(page).toHaveURL(/\/c\/c-group$/);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText("Выберите чат")).toBeVisible();
+});
