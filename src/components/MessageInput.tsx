@@ -30,7 +30,7 @@ export function MessageInput({
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const typingTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const typingTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const isTypingRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // client_id живёт вместе с черновиком, а не генерируется на каждое

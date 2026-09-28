@@ -112,9 +112,14 @@ export function NewChatDialog({
         e.preventDefault();
         onClose();
       }}
-      // Страховка: если браузер закрыл окно сам (например, повторный Escape
-      // Chrome не даёт отменить), сообщаем родителю.
-      onClose={onClose}
+      // Страховка: если браузер закрыл окно сам (повторный Escape Chrome не
+      // даёт отменить), сообщаем родителю. Событие close приходит асинхронно:
+      // в dev StrictMode прогоняет cleanup (dialog.close()) и тут же снова
+      // открывает окно — к приходу события оно уже открыто, и закрывать его
+      // через родителя нельзя.
+      onClose={(e) => {
+        if (!e.currentTarget.open) onClose();
+      }}
       onPointerDown={(e) => {
         pressedOnBackdrop.current = onBackdrop(e);
       }}

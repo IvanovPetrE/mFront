@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import type { WsPersonalEvent } from "../api/types";
 import { CLOSE_FORBIDDEN, useReconnectingSocket } from "./useReconnectingSocket";
 
@@ -24,20 +23,17 @@ interface Handlers {
  * решают разные задачи (открытый тред vs список чатов).
  */
 export function useMyEventsSocket(enabled: boolean, handlers: Handlers) {
-  const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
-
   const { connected } = useReconnectingSocket(enabled ? "/ws/me" : null, {
     onOpen: (isReconnect) => {
-      if (isReconnect) handlersRef.current.onReconnected?.();
+      if (isReconnect) handlers.onReconnected?.();
     },
     onFatalClose: (code) => {
-      if (code === CLOSE_FORBIDDEN) handlersRef.current.onAccountDisabled?.();
+      if (code === CLOSE_FORBIDDEN) handlers.onAccountDisabled?.();
     },
     onEvent: (raw) => {
       const msg = raw as WsPersonalEvent;
       if (msg.event === "chat.updated") {
-        handlersRef.current.onChatUpdated?.(msg.data.chat_id);
+        handlers.onChatUpdated?.(msg.data.chat_id);
       }
     },
   });

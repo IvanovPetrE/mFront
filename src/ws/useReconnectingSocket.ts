@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { tokenStore } from "../auth/tokenStore";
 
 // Коды закрытия, которые шлёт бэкенд (app/routers/ws.py).
@@ -54,9 +54,17 @@ export interface SocketOptions {
  */
 export function useReconnectingSocket(path: string | null, options: SocketOptions) {
   const [connected, setConnected] = useState(false);
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
   const wsRef = useRef<WebSocket | null>(null);
+
+  // Effect Events (React 19.2): вызываются из эффекта, но всегда видят
+  // свежие options, и при этом не входят в зависимости — смена колбэков не
+  // переподключает сокет. Раньше для этого options копировались в ref прямо
+  // во время рендера — это нарушает правила React (рендер должен быть
+  // чистым), и React Compiler такие компоненты пропускает.
+  const onEvent = useEffectEvent((msg: { event: string; data?: unknown }) => options.onEvent(msg));
+  const onOpen = useEffectEvent((isReconnect: boolean) => options.onOpen?.(isReconnect));
+  const onFatalClose = useEffectEvent((code: number) => options.onFatalClose?.(code));
+  const beforeClose = useEffectEvent((send: (event: object) => boolean) => options.beforeClose?.(send));
 
   useEffect(() => {
     if (!path) return;
@@ -141,7 +149,7 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
         if (cancelled) return;
         retryDelay = RETRY_MIN_MS;
         setConnected(true);
-        optionsRef.current.onOpen?.(everOpened);
+        onOpen(everOpened);
         everOpened = true;
         probe = probeThis;
 
@@ -171,7 +179,7 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
           serverAnswersPing = true;
           return;
         }
-        optionsRef.current.onEvent(msg);
+        onEvent(msg);
       };
 
       ws.onclose = async (evt) => {
@@ -180,7 +188,7 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
         setConnected(false);
 
         if (evt.code === CLOSE_FORBIDDEN || evt.code === CLOSE_NOT_FOUND) {
-          optionsRef.current.onFatalClose?.(evt.code);
+          onFatalClose(evt.code);
           return;
         }
         if (evt.code === CLOSE_UNAUTHORIZED) {
@@ -225,7 +233,7 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
       clearInterval(pingTimer);
       const ws = wsRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
-        optionsRef.current.beforeClose?.((event) => {
+        beforeClose((event) => {
           ws.send(JSON.stringify(event));
           return true;
         });

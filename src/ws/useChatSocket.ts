@@ -32,16 +32,16 @@ interface Handlers {
 
 /** Одно WS-соединение на открытый чат: сообщения, статусы, typing. */
 export function useChatSocket(chatId: string | null, handlers: Handlers) {
-  const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  // handlers можно читать напрямую: useReconnectingSocket оборачивает
+  // колбэки в Effect Events, они всегда видят свежий рендер.
   const lastTypingSentAt = useRef(0);
 
   const { connected, send } = useReconnectingSocket(chatId ? `/ws/chat/${chatId}` : null, {
     onOpen: (isReconnect) => {
       lastTypingSentAt.current = 0;
-      if (isReconnect) handlersRef.current.onReconnected?.();
+      if (isReconnect) handlers.onReconnected?.();
     },
-    onFatalClose: (code) => handlersRef.current.onAccessLost?.(code),
+    onFatalClose: (code) => handlers.onAccessLost?.(code),
     // Уходим из чата посреди набора: гасим индикатор у собеседников сразу,
     // а не через их таймаут. Раньше это пытался сделать MessageInput из своего
     // cleanup, но к тому моменту сокет уже был закрыт (cleanup родителя
@@ -54,7 +54,7 @@ export function useChatSocket(chatId: string | null, handlers: Handlers) {
     },
     onEvent: (raw) => {
       const msg = raw as WsServerEvent;
-      const h = handlersRef.current;
+      const h = handlers;
       switch (msg.event) {
         case "message.created":
           h.onMessageCreated?.(msg.data);

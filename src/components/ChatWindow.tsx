@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { messagesApi } from "../api/messages";
 import { chatsApi } from "../api/chats";
 import { ApiError, errorMessage } from "../api/http";
@@ -113,18 +122,16 @@ export function ChatWindow({
   // в групповом чате может печатать сразу несколько человек.
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  // Колбэки родителя — через ref: иначе, если родитель передаст новую
-  // функцию на каждом рендере (не обернёт в useCallback), loadLatest ниже
-  // будет пересоздаваться, эффект загрузки — перезапускаться, и получится
-  // бесконечный цикл запросов. Компонент не должен зависеть от того,
-  // насколько аккуратно его используют.
-  const parentCallbacks = useRef({ onAccessLost, onUnknownUsers });
-  parentCallbacks.current = { onAccessLost, onUnknownUsers };
-
   const loseAccess = useCallback(() => {
     setAccessLost(true);
-    parentCallbacks.current.onAccessLost(chat.id);
-  }, [chat.id]);
+    onAccessLost(chat.id);
+  }, [chat.id, onAccessLost]);
+
+  // Колбэк родителя в эффекте — через Effect Event (React 19.2): эффект видит
+  // свежую функцию, но не перезапускается, если родитель передаёт новую на
+  // каждом рендере. Раньше для этого колбэки копировались в ref прямо во
+  // время рендера — это нарушает правила React (рендер должен быть чистым).
+  const reportUnknownUsers = useEffectEvent((ids: string[]) => onUnknownUsers(ids));
 
   const loadLatest = useCallback(
     async (mode: "initial" | "resync") => {
@@ -151,8 +158,12 @@ export function ChatWindow({
     [chat.id, loseAccess],
   );
 
+  // Первичная загрузка — один раз на окно: при смене чата родитель
+  // пересоздаёт ChatWindow по key, так что зависеть от loadLatest (а через
+  // него от колбэков родителя) эффекту незачем.
+  const loadInitial = useEffectEvent(() => loadLatest("initial"));
   useEffect(() => {
-    loadLatest("initial");
+    loadInitial();
     const typingTimeouts = typingTimeoutsRef.current;
     return () => {
       // Поздний ответ после ухода из чата будет проигнорирован.
@@ -160,7 +171,7 @@ export function ChatWindow({
       typingTimeouts.forEach((t) => clearTimeout(t));
       typingTimeouts.clear();
     };
-  }, [loadLatest]);
+  }, []);
 
   // --- Автоскролл -----------------------------------------------------------
   // Раньше лента прыгала вниз на КАЖДОЕ изменение messages — даже когда
@@ -253,7 +264,7 @@ export function ChatWindow({
     for (const m of messages) {
       if (m.user_id && !peopleById.has(m.user_id)) unknown.add(m.user_id);
     }
-    if (unknown.size) parentCallbacks.current.onUnknownUsers(Array.from(unknown));
+    if (unknown.size) reportUnknownUsers(Array.from(unknown));
   }, [messages, peopleById]);
 
   // --- Realtime -------------------------------------------------------------

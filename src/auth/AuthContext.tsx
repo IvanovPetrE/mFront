@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const configRef = useRef<AuthConfig | null>(null);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout>>();
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Номер текущей попытки bootstrap: ответ от устаревшей попытки (StrictMode,
   // повторное нажатие «Повторить») не должен перетирать состояние новой.
   const bootGeneration = useRef(0);

@@ -51,7 +51,7 @@ export function ChatsPage() {
   // прийти позже и затереть свежий список устаревшим. Применяем только
   // ответ на последний запрос.
   const chatsRequestRef = useRef(0);
-  const reloadDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const reloadDebounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const reloadChats = useCallback(async () => {
     const request = ++chatsRequestRef.current;
@@ -90,7 +90,7 @@ export function ChatsPage() {
   // перезапрашиваем справочник (с debounce и не больше раза на каждый id —
   // удалённого пользователя в списке не будет никогда, не надо зацикливаться).
   const triedUnknownRef = useRef<Set<string>>(new Set());
-  const peopleDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const peopleDebounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const requestUsers = useCallback(
     (ids: string[]) => {
       const fresh = ids.filter((id) => !triedUnknownRef.current.has(id));
