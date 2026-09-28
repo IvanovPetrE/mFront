@@ -46,9 +46,14 @@ export const tokenStore = {
     accessToken = token;
     listeners.forEach((l) => l(token));
   },
-  subscribe(listener: (token: string | null) => void) {
+  subscribe(listener: (token: string | null) => void): () => void {
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    // Фигурные скобки обязательны: `() => listeners.delete(listener)` вернула
+    // бы boolean, а функция очистки эффекта в React обязана ничего не
+    // возвращать — с настоящими @types/react на этом падал `tsc -b` в сборке.
+    return () => {
+      listeners.delete(listener);
+    };
   },
   // AuthContext регистрирует реальную реализацию refresh при монтировании;
   // http.ts дёргает её при 401, не зная деталей CSRF/cookie-имён.
