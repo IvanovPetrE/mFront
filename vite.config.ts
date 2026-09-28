@@ -1,10 +1,20 @@
+/// <reference types="vitest/config" />
+import babel from "@rolldown/plugin-babel";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 
 // Дев-прокси нужен, чтобы браузер видел фронт и бэк как один origin —
 // иначе refresh-cookie (SameSite=Strict) до бэкенда не долетит.
+// Адрес открытого чата — /c/<id>, а не /chats/<id>: /chats проксируется на API.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // React Compiler: сам мемоизирует компоненты и значения, ручные
+    // useMemo/useCallback/memo становятся не нужны. Компоненты, нарушающие
+    // правила React (например, запись в ref во время рендера), он пропускает —
+    // это же подсвечивает eslint-plugin-react-hooks.
+    babel({ presets: [reactCompilerPreset()] }),
+  ],
   server: {
     port: 5173,
     proxy: {
@@ -17,5 +27,10 @@ export default defineConfig({
         ws: true,
       },
     },
+  },
+  test: {
+    // Только юнит-тесты; e2e/*.spec.ts запускает Playwright.
+    include: ["src/**/*.test.ts"],
+    environment: "node",
   },
 });
