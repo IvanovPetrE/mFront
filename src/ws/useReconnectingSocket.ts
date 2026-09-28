@@ -11,11 +11,10 @@ const RETRY_MAX_MS = 15_000;
 // Прокси и балансировщики (nginx по умолчанию — 60 с) тихо рвут
 // соединения, по которым ничего не идёт. Пинг раз в 25 с держит их живыми.
 const PING_INTERVAL_MS = 25_000;
-// Если сервер уже показал, что отвечает на ping, но замолчал дольше этого,
-// соединение считаем мёртвым (типично для телефона, ушедшего в сон):
-// сокет формально OPEN, но данные не ходят, и без проверки мы бы этого
-// не заметили до следующей попытки что-то отправить.
-const DEAD_AFTER_MS = 60_000;
+// Сколько ждать pong на внеочередную проверку — при возврате на вкладку
+// или появлении сети. Телефон, вышедший из сна, часто держит «мёртвый»
+// сокет: формально OPEN, но данные не ходят.
+const PROBE_TIMEOUT_MS = 5000;
 
 export function wsBaseUrl(): string {
   const explicit = import.meta.env.VITE_WS_BASE_URL as string | undefined;
@@ -66,6 +65,8 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     let everOpened = false;
+    // Внеочередная проверка живости текущего соединения (есть, пока оно открыто).
+    let probe: (() => void) | null = null;
 
     function scheduleReconnect() {
       if (cancelled) return;
@@ -94,8 +95,47 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
 
       const ws = new WebSocket(`${wsBaseUrl()}${path}?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
-      let lastSeenAt = Date.now();
+      // Живость проверяем не по часам («молчит дольше 60 с»), а по ответам:
+      // если на прошлый ping так и не пришло ни одного кадра — соединение
+      // мёртвое. Часы в фоне врут: Chrome сдвигает таймеры скрытых вкладок
+      // до раза в минуту, и проверка по времени давала ложные разрывы.
+      let awaitingPong = false;
+      // Пока сервер ни разу не ответил на ping, молчание ничего не значит:
+      // старый бэкенд мог ping вообще не поддерживать.
       let serverAnswersPing = false;
+      let probeTimer: ReturnType<typeof setTimeout> | undefined;
+
+      const sendPing = () => {
+        ws.send(JSON.stringify({ event: "ping" }));
+        awaitingPong = true;
+      };
+
+      const release = () => {
+        clearInterval(pingTimer);
+        clearTimeout(probeTimer);
+        if (probe === probeThis) probe = null;
+        if (wsRef.current === ws) wsRef.current = null;
+      };
+
+      // Мёртвое соединение бросаем сразу, не дожидаясь onclose: закрытие
+      // мёртвого TCP в браузере может тянуться до минуты.
+      const abandon = () => {
+        ws.onopen = ws.onmessage = ws.onclose = null;
+        ws.close();
+        release();
+        if (cancelled) return;
+        setConnected(false);
+        scheduleReconnect();
+      };
+
+      const probeThis = () => {
+        if (ws.readyState !== WebSocket.OPEN || !serverAnswersPing) return;
+        sendPing();
+        clearTimeout(probeTimer);
+        probeTimer = setTimeout(() => {
+          if (awaitingPong) abandon();
+        }, PROBE_TIMEOUT_MS);
+      };
 
       ws.onopen = () => {
         if (cancelled) return;
@@ -103,21 +143,22 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
         setConnected(true);
         optionsRef.current.onOpen?.(everOpened);
         everOpened = true;
+        probe = probeThis;
 
         clearInterval(pingTimer);
         pingTimer = setInterval(() => {
           if (ws.readyState !== WebSocket.OPEN) return;
-          if (serverAnswersPing && Date.now() - lastSeenAt > DEAD_AFTER_MS) {
-            ws.close(); // onclose сам запланирует переподключение
+          if (serverAnswersPing && awaitingPong) {
+            abandon();
             return;
           }
-          ws.send(JSON.stringify({ event: "ping" }));
+          sendPing();
         }, PING_INTERVAL_MS);
       };
 
       ws.onmessage = (evt) => {
         if (cancelled) return;
-        lastSeenAt = Date.now();
+        awaitingPong = false; // любой кадр доказывает, что соединение живо
         let msg: { event: string; data?: unknown };
         try {
           msg = JSON.parse(evt.data);
@@ -134,8 +175,7 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
       };
 
       ws.onclose = async (evt) => {
-        clearInterval(pingTimer);
-        if (wsRef.current === ws) wsRef.current = null;
+        release();
         if (cancelled) return;
         setConnected(false);
 
@@ -155,21 +195,32 @@ export function useReconnectingSocket(path: string | null, options: SocketOption
       };
     }
 
-    // Сеть вернулась — не ждём окончания backoff (до 15 с), а подключаемся сразу.
+    // Сеть вернулась. Если ждём переподключения — не ждём окончания backoff
+    // (до 15 с), подключаемся сразу. Если сокет «открыт» — проверяем, живой
+    // ли он: при смене сети (Wi-Fi → мобильная) старое соединение умирает молча.
     function handleOnline() {
       if (retryTimer !== undefined) {
         clearTimeout(retryTimer);
         retryDelay = RETRY_MIN_MS;
         connect();
+      } else {
+        probe?.();
       }
     }
+    // Вернулись на вкладку (или телефон вышел из сна) — сразу проверяем
+    // соединение, а не ждём следующего планового ping.
+    function handleVisibility() {
+      if (document.visibilityState === "visible") probe?.();
+    }
     window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     connect();
 
     return () => {
       cancelled = true;
       window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibility);
       clearTimeout(retryTimer);
       clearInterval(pingTimer);
       const ws = wsRef.current;

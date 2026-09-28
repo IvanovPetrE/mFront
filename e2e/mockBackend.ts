@@ -98,6 +98,10 @@ export interface MockBackend {
   failNextSend(kind: "network" | 500): void;
   /** Все POST /messages/ с телом — для проверки client_id. */
   sent: Array<{ chat_id: string; content: string; client_id: string }>;
+  /** «Убить» текущее соединение по пути: сокет формально открыт, но сервер больше не отвечает. */
+  mute(path: string): void;
+  /** Сколько раз открывался сокет по пути. */
+  opens(path: string): number;
 }
 
 export async function mockBackend(page: Page, data: MockData = defaultData()): Promise<MockBackend> {
@@ -105,6 +109,7 @@ export async function mockBackend(page: Page, data: MockData = defaultData()): P
   const wsLog: string[] = [];
   const sockets = new Map<string, WebSocketRoute>();
   const sent: MockBackend["sent"] = [];
+  const muted = new WeakSet<WebSocketRoute>();
   let failNext: "network" | 500 | null = null;
   let nextSeq = 10_000;
 
@@ -168,6 +173,7 @@ export async function mockBackend(page: Page, data: MockData = defaultData()): P
     ws.onMessage((raw) => {
       const text = String(raw);
       wsLog.push(`C→S ${path} ${text}`);
+      if (muted.has(ws)) return;
       try {
         if ((JSON.parse(text) as { event?: string }).event === "ping") ws.send(JSON.stringify({ event: "pong" }));
       } catch {
@@ -191,6 +197,12 @@ export async function mockBackend(page: Page, data: MockData = defaultData()): P
     },
     failNextSend(kind) {
       failNext = kind;
+    },
+    mute(path) {
+      muted.add(this.socket(path));
+    },
+    opens(path) {
+      return wsLog.filter((l) => l === `OPEN ${path}`).length;
     },
   };
 }
